@@ -3,68 +3,77 @@
   <div :class="['document-edit', splitOverview && 'split-overview-component']">
     <EditTopBar
       :splitOverview="splitOverview"
-      @cancel-editing="handleCancelEditing"
+      @cancel-editing="handleCloseEditing"
       @submit-rotation="handleRotationSubmission"
       @confirm-splitting="handleSplitOverview"
-      :handleCancelEditing="handleCancelEditing"
+      :handleCloseEditing="handleCloseEditing"
     />
     <div class="pages-section" v-if="!splitOverview">
-      <div :class="['document-grid', scroll && 'scroll']">
-        <div
-          v-for="(page, index) in pages"
-          v-bind:key="index"
-          :class="['image-section']"
+      <div :class="[scroll && 'scroll']">
+        <draggable
+          v-model="pagesArray"
+          :class="['document-grid']"
+          easing="cubic-bezier(0.37, 0, 0.63, 1)"
+          @start="dragging = true"
+          @end="handleEnd"
+          :move="checkMove"
         >
-          <div class="image-container" @click="changePage(page.number)">
-            <div class="thumbnail">
-              <div
-                class="img-container"
-                :style="
-                  editMode === 'rotate' && {
-                    transform: 'rotate(' + getRotation(page.id) + 'deg)'
-                  }
-                "
-              >
-                <ServerImage
-                  :class="['img-thumbnail']"
-                  :imageUrl="`${page.thumbnail_url}?${page.updated_at}`"
-                />
-              </div>
-              <div class="icon-container">
-                <div class="action-icon">
-                  <b-icon
-                    icon="eye"
-                    class="is-small"
-                    @click="changePage(page.number)"
+          <div
+            v-for="(page, index) in pagesArray"
+            :key="page.id"
+            :class="['image-section']"
+          >
+            <div class="image-container" @click="changePage(page.number)">
+              <div class="thumbnail">
+                <div
+                  class="img-container"
+                  :style="
+                    editMode === 'rotate' && {
+                      transform: 'rotate(' + getRotation(page.id) + 'deg)'
+                    }
+                  "
+                >
+                  <ServerImage
+                    :class="['img-thumbnail']"
+                    :imageUrl="`${page.thumbnail_url}?${page.updated_at}`"
                   />
                 </div>
-                <div
-                  class="action-icon"
-                  v-if="editMode === editOptions.rotate"
-                  @click="rotateSinglePage(page.id, page.number)"
-                >
-                  <b-icon icon="arrow-rotate-left" class="is-small" />
+                <div class="icon-container">
+                  <div class="action-icon">
+                    <b-icon
+                      icon="eye"
+                      class="is-small"
+                      @click="changePage(page.number)"
+                    />
+                  </div>
+                  <div
+                    class="action-icon"
+                    v-if="editMode === editOptions.rotate"
+                    @click="rotateSinglePage(page.id, page.number)"
+                  >
+                    <b-icon icon="arrow-rotate-left" class="is-small" />
+                  </div>
                 </div>
               </div>
+              <span class="page-number">{{ page.number }}</span>
             </div>
-            <span class="page-number">{{ page.number }}</span>
+            <div
+              v-if="editMode === editOptions.split"
+              :class="[
+                'splitting-lines',
+                activeSplittingLines[index] === page.number && 'active-split'
+              ]"
+              @click="handleSplittingLines(page)"
+            >
+              <div class="scissors-icon">
+                <b-icon icon="scissors" class="is-small" />
+              </div>
+              <div v-if="activeSplittingLines[index] === page.number">
+                <SplitDivider />
+              </div>
+            </div>
           </div>
-          <div
-            v-if="editMode === editOptions.split"
-            :class="[
-              'splitting-lines',
-              activeSplittingLines[index] === page.number && 'active-split'
-            ]"
-            @click="handleSplittingLines(page)"
-          >
-            <div class="scissors-icon">
-              <b-icon icon="scissors" class="is-small" />
-            </div>
-            <div v-if="activeSplittingLines[index] === page.number">
-              <SplitDivider />
-            </div>
-          </div>
-        </div>
+        </draggable>
       </div>
     </div>
     <div v-else class="confirm-split-component">
@@ -73,6 +82,7 @@
         :fileExtension="fileExtension"
         :handleShowError="handleShowError"
         :handleMessage="handleMessage"
+        :pagesArray="pagesArray"
         @change-page="changePage"
         @go-back="closeSplitOverview = true"
       />
@@ -94,6 +104,7 @@ import EditFooter from "./EditFooter";
 import SplitOverview from "./SplitOverview";
 import ServerImage from "../../assets/images/ServerImage";
 import SplitDivider from "../../assets/images/SplitDivider";
+import draggable from "vuedraggable";
 
 /**
  * This component shows a document thumbnail grid view to be able to edit the document.
@@ -105,7 +116,8 @@ export default {
     EditFooter,
     SplitOverview,
     ServerImage,
-    SplitDivider
+    SplitDivider,
+    draggable
   },
   data() {
     return {
@@ -115,7 +127,9 @@ export default {
       splitOverview: false,
       closeSplitOverview: false,
       activeSplittingLines: [],
-      pagesArray: []
+      pagesArray: [],
+      dragging: false,
+      prevPageAtIndex: null
     };
   },
   computed: {
@@ -154,7 +168,10 @@ export default {
         /** Splitting */
         this.pages.map(page => {
           this.pagesArray.push({
-            number: page.number
+            id: page.id,
+            number: page.number,
+            thumbnail_url: page.thumbnail_url,
+            updated_at: page.updated_at
           });
         });
 
@@ -169,7 +186,7 @@ export default {
         );
       }
     },
-    handleCancelEditing() {
+    handleCloseEditing() {
       this.$store.dispatch("edit/disableEditMode").then(() => {
         this.$store.dispatch("display/updateFit", "width");
       });
@@ -231,7 +248,7 @@ export default {
       );
 
       if (changedRotations.length === 0) {
-        this.handleCancelEditing();
+        this.handleCloseEditing();
         return;
       }
 
@@ -294,7 +311,7 @@ export default {
         });
 
       // Whether the rotation worked properly or not close editing mode
-      this.handleCancelEditing();
+      this.handleCloseEditing();
     },
 
     /** SPLIT */
@@ -379,12 +396,12 @@ export default {
       let pages;
 
       if (index === 0) {
-        pages = this.pages.slice(0, splittingLine[index]);
+        pages = this.pagesArray.slice(0, splittingLine[index]);
       } else {
         if (!splittingLine[index]) {
-          pages = this.pages.slice(splittingLine[index - 1]);
+          pages = this.pagesArray.slice(splittingLine[index - 1]);
         } else {
-          pages = this.pages.slice(
+          pages = this.pagesArray.slice(
             splittingLine[index - 1],
             splittingLine[index]
           );
@@ -399,11 +416,13 @@ export default {
       this.closeSplitOverview = false;
 
       this.splitFileNameFromExtension();
-
+      this.saveDocument();
+    },
+    saveDocument() {
       // If there was no splitting, we just update the splitPages array
       // to have 1 item with all the pages in the document
       if (this.splitPages === null || this.splitPages.length === 0) {
-        const singleDocument = [
+        const document = [
           {
             name: this.selectedDocument.data_file_name,
             category: this.selectedDocument.category,
@@ -411,8 +430,30 @@ export default {
           }
         ];
 
-        this.$store.dispatch("edit/setSplitPages", singleDocument);
+        this.$store.dispatch("edit/setSplitPages", document);
       }
+    },
+
+    /** SORT */
+    checkMove(e) {
+      // Save the page placed originally where the page we are dragging will go
+      this.prevPageAtIndex = this.pagesArray.find(
+        page => this.pagesArray.indexOf(page) === e.draggedContext.futureIndex
+      );
+    },
+    handleEnd() {
+      this.draggable = false;
+
+      // Update page numbers
+      this.pagesArray = this.pagesArray.map(page => {
+        const index = this.pagesArray.indexOf(page);
+        return {
+          ...page,
+          number: index + 1
+        };
+      });
+
+      this.saveDocument();
     }
   },
   watch: {
