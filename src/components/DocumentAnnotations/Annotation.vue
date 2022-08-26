@@ -17,7 +17,7 @@
       ]"
       role="textbox"
       ref="contentEditable"
-      :contenteditable="true"
+      :contenteditable="!publicView"
       @paste="handlePaste"
       @keypress.enter="saveAnnotationChanges"
       @click="handleEditAnnotation"
@@ -105,7 +105,7 @@ export default {
     ...mapGetters("document", ["isAnnotationInEditMode", "pageAtIndex"]),
     ...mapGetters("display", ["bboxToRect"]),
     ...mapState("selection", ["spanSelection", "selectionEnabled"]),
-    ...mapState("document", ["editAnnotation"]),
+    ...mapState("document", ["editAnnotation", "publicView"]),
     annotationText() {
       if (this.isAnnotationInEditMode(this.annotation.id, this.spanIndex)) {
         return this.$refs.contentEditable.textContent.trim();
@@ -123,6 +123,7 @@ export default {
     },
     handleEditAnnotation() {
       if (
+        !this.publicView &&
         !this.isAnnotationInEditMode(this.annotation.id, this.spanIndex) &&
         !this.isLoading
       ) {

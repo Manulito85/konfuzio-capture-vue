@@ -21,7 +21,8 @@ const state = {
   missingAnnotations: [],
   // TODO: remove this after the reject label endpoint is merged in testing
   showRejectedLabels: process.env.VUE_APP_SHOW_REJECT_LABELS &&
-    process.env.VUE_APP_SHOW_REJECT_LABELS == "true"
+    process.env.VUE_APP_SHOW_REJECT_LABELS == "true",
+  publicView: process.env.VUE_APP_GUEST_USER_TOKEN == null && process.env.VUE_APP_FULL_MODE != 'true'
 };
 
 const getters = {
