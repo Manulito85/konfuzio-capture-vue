@@ -49,6 +49,7 @@ export default {
         this.$store.dispatch("document/fetchAnnotations"),
         this.$store.dispatch("document/fetchDocumentData"),
         this.showRejectedLabels &&
+          !this.publicView &&
           this.$store.dispatch("document/fetchMissingAnnotations")
       ]).finally(() => {
         this.$store.dispatch("document/endLoading");
